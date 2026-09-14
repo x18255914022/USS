@@ -1,0 +1,57 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "name": "university-schedule",
+  "default_agent": "fullstack-agent",
+  "instructions": [
+    "README.md",
+    "AGENTS.md"
+  ],
+  "agent": {
+    "frontend-agent": {
+
+      "mode": "subagent",
+      "description": "Frontend specialist for Next.js 16, React 19, TypeScript and Tailwind CSS"
+    },
+    "backend-agent": {
+
+      "mode": "subagent",
+      "description": "Backend specialist for Fastify, REST API design, JWT authentication"
+    },
+    "database-agent": {
+
+      "mode": "subagent",
+      "description": "Database specialist for Prisma, SQLite, schema design and migrations"
+    },
+    "fullstack-agent": {
+
+      "mode": "subagent",
+      "description": "Fullstack developer for end-to-end features across all layers"
+    },
+    "code-reviewer": {
+      "mode": "subagent",
+      "description": "Code reviewer for quality, security, and best practices",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny",
+        "task": "deny"
+      }
+    },
+    "devops-agent": {
+
+      "mode": "subagent",
+      "description": "DevOps specialist for Docker, deployment, and infrastructure"
+    }
+  },
+  "skills": {
+    "paths": [".opencode/skills"]
+  },
+  "permission": {
+    "edit": "allow",
+    "bash": "ask",
+    "task": "allow",
+    "external_directory": {
+      "~/": "ask",
+      "*": "deny"
+    }
+  }
+}

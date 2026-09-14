@@ -1,0 +1,457 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                      String                  @id @default(uuid())
+  email                   String                  @unique
+  passwordHash            String
+  firstName               String
+  lastName                String
+  isActive                Boolean                 @default(true)
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  telegramChatId          String?                 @unique
+  changeNotifications     ChangeNotification[]
+  notificationPreference  NotificationPreference?
+  rejectedScheduleChanges ScheduleChange[]        @relation("ScheduleChangeRejectedBy")
+  approvedScheduleChanges ScheduleChange[]        @relation("ScheduleChangeApprovedBy")
+  createdScheduleChanges  ScheduleChange[]        @relation("ScheduleChangeCreatedBy")
+  semesterSettingsUpdated SemesterSettings[]      @relation("SemesterSettingsUpdatedBy")
+  student                 Student?
+  systemSettingsUpdated   SystemSettings[]        @relation("SystemSettingsUpdatedBy")
+  teacher                 Teacher?
+  roles                   UserRole[]
+}
+
+model TelegramLinkCode {
+  id             String    @id @default(uuid())
+  telegramChatId String
+  codeHash       String    @unique
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+model ScheduleChange {
+  id                  String               @id @default(uuid())
+  type                String
+  status              String               @default("PENDING")
+  semesterId          String
+  lessonId            String?
+  date                DateTime
+  reason              String?
+  comment             String?
+  newDate             DateTime?
+  newTeacherId        String?
+  newRoomId           String?
+  newDayOfWeek        Int?
+  newTimeslotId       String?
+  newSubjectId        String?
+  newLessonTypeId     String?
+  targetGroupId       String?
+  targetSubgroupId    String?
+  targetStreamGroupId String?
+  createdById         String
+  approvedById        String?
+  rejectedById        String?
+  revokedAt           DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  notifications       ChangeNotification[]
+  rejectedBy          User?                @relation("ScheduleChangeRejectedBy", fields: [rejectedById], references: [id])
+  approvedBy          User?                @relation("ScheduleChangeApprovedBy", fields: [approvedById], references: [id])
+  createdBy           User                 @relation("ScheduleChangeCreatedBy", fields: [createdById], references: [id])
+  targetStreamGroup   StreamGroup?         @relation("ScheduleChangeTargetStreamGroup", fields: [targetStreamGroupId], references: [id])
+  targetSubgroup      Subgroup?            @relation("ScheduleChangeTargetSubgroup", fields: [targetSubgroupId], references: [id])
+  targetGroup         Group?               @relation("ScheduleChangeTargetGroup", fields: [targetGroupId], references: [id])
+  newLessonType       LessonType?          @relation("ScheduleChangeNewLessonType", fields: [newLessonTypeId], references: [id])
+  newSubject          Subject?             @relation("ScheduleChangeNewSubject", fields: [newSubjectId], references: [id])
+  newTimeslot         Timeslot?            @relation("ScheduleChangeNewTimeslot", fields: [newTimeslotId], references: [id])
+  newRoom             Room?                @relation("ScheduleChangeNewRoom", fields: [newRoomId], references: [id])
+  newTeacher          Teacher?             @relation("ScheduleChangeNewTeacher", fields: [newTeacherId], references: [id])
+  lesson              Lesson?              @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  semester            Semester             @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+
+  @@index([semesterId, date, status])
+  @@index([createdById, status])
+  @@index([lessonId, date])
+}
+
+model SemesterSettings {
+  id                     String   @id
+  semesterId             String   @unique
+  minCancelHours         Int?
+  autoApproveReplaceRoom Boolean?
+  updatedAt              DateTime @updatedAt
+  updatedById            String?
+  updatedBy              User?    @relation("SemesterSettingsUpdatedBy", fields: [updatedById], references: [id])
+  semester               Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+}
+
+model ChangeNotification {
+  id        String         @id @default(uuid())
+  changeId  String
+  userId    String
+  channel   String
+  status    String         @default("PENDING")
+  sentAt    DateTime?
+  error     String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  change    ScheduleChange @relation(fields: [changeId], references: [id], onDelete: Cascade)
+
+  @@unique([changeId, userId, channel])
+  @@index([userId, status])
+}
+
+model NotificationPreference {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  telegramEnabled Boolean  @default(true)
+  quietHoursStart Int?
+  quietHoursEnd   Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SystemSettings {
+  id                     String   @id
+  minCancelHours         Int      @default(2)
+  autoApproveReplaceRoom Boolean  @default(true)
+  updatedAt              DateTime @updatedAt
+  updatedById            String?
+  updatedBy              User?    @relation("SystemSettingsUpdatedBy", fields: [updatedById], references: [id])
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String
+  code        String           @unique
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  id    String           @id @default(uuid())
+  code  String           @unique
+  name  String
+  roles RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model Faculty {
+  id          String       @id @default(uuid())
+  name        String
+  code        String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  departments Department[]
+  groups      Group[]
+}
+
+model Department {
+  id        String    @id @default(uuid())
+  name      String
+  code      String
+  facultyId String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  faculty   Faculty   @relation(fields: [facultyId], references: [id])
+  teachers  Teacher[]
+
+  @@unique([facultyId, code])
+}
+
+model Building {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  address   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  rooms     Room[]
+}
+
+model RoomType {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  rooms     Room[]
+}
+
+model Room {
+  id                       String           @id @default(uuid())
+  name                     String
+  buildingId               String
+  roomTypeId               String
+  capacity                 Int
+  floor                    Int?
+  hasProjector             Boolean          @default(false)
+  hasComputers             Boolean          @default(false)
+  isActive                 Boolean          @default(true)
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+  lessons                  Lesson[]
+  roomType                 RoomType         @relation(fields: [roomTypeId], references: [id])
+  building                 Building         @relation(fields: [buildingId], references: [id])
+  scheduleChangesAsNewRoom ScheduleChange[] @relation("ScheduleChangeNewRoom")
+
+  @@unique([buildingId, name])
+}
+
+model Subject {
+  id                          String           @id @default(uuid())
+  name                        String
+  code                        String           @unique
+  createdAt                   DateTime         @default(now())
+  updatedAt                   DateTime         @updatedAt
+  lessons                     Lesson[]
+  scheduleChangesAsNewSubject ScheduleChange[] @relation("ScheduleChangeNewSubject")
+  teachers                    TeacherSubject[]
+}
+
+model LessonType {
+  id                             String           @id @default(uuid())
+  name                           String
+  code                           String           @unique
+  color                          String
+  createdAt                      DateTime         @default(now())
+  updatedAt                      DateTime         @updatedAt
+  lessons                        Lesson[]
+  scheduleChangesAsNewLessonType ScheduleChange[] @relation("ScheduleChangeNewLessonType")
+}
+
+model Group {
+  id                           String             @id @default(uuid())
+  name                         String             @unique
+  course                       Int
+  facultyId                    String
+  createdAt                    DateTime           @default(now())
+  updatedAt                    DateTime           @updatedAt
+  faculty                      Faculty            @relation(fields: [facultyId], references: [id])
+  lessons                      LessonGroup[]
+  scheduleChangesAsTargetGroup ScheduleChange[]   @relation("ScheduleChangeTargetGroup")
+  streams                      StreamGroupEntry[]
+  students                     Student[]
+  subgroups                    Subgroup[]
+}
+
+model Subgroup {
+  id                              String           @id @default(uuid())
+  number                          Int
+  groupId                         String
+  createdAt                       DateTime         @default(now())
+  updatedAt                       DateTime         @updatedAt
+  lessons                         LessonSubgroup[]
+  scheduleChangesAsTargetSubgroup ScheduleChange[] @relation("ScheduleChangeTargetSubgroup")
+  students                        Student[]
+  group                           Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, number])
+}
+
+model StreamGroup {
+  id                                 String              @id @default(uuid())
+  name                               String
+  createdAt                          DateTime            @default(now())
+  updatedAt                          DateTime            @updatedAt
+  lessons                            LessonStreamGroup[]
+  scheduleChangesAsTargetStreamGroup ScheduleChange[]    @relation("ScheduleChangeTargetStreamGroup")
+  entries                            StreamGroupEntry[]
+}
+
+model StreamGroupEntry {
+  streamGroupId String
+  groupId       String
+  group         Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  streamGroup   StreamGroup @relation(fields: [streamGroupId], references: [id], onDelete: Cascade)
+
+  @@id([streamGroupId, groupId])
+}
+
+model Student {
+  id         String    @id @default(uuid())
+  userId     String    @unique
+  groupId    String
+  subgroupId String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  subgroup   Subgroup? @relation(fields: [subgroupId], references: [id])
+  group      Group     @relation(fields: [groupId], references: [id])
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Teacher {
+  id                          String           @id @default(uuid())
+  userId                      String           @unique
+  departmentId                String
+  position                    String?
+  createdAt                   DateTime         @default(now())
+  updatedAt                   DateTime         @updatedAt
+  lessons                     LessonTeacher[]
+  scheduleChangesAsNewTeacher ScheduleChange[] @relation("ScheduleChangeNewTeacher")
+  department                  Department       @relation(fields: [departmentId], references: [id])
+  user                        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjects                    TeacherSubject[]
+}
+
+model TeacherSubject {
+  teacherId String
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@id([teacherId, subjectId])
+}
+
+model Semester {
+  id               String            @id @default(uuid())
+  name             String            @unique
+  startDate        DateTime
+  endDate          DateTime
+  isActive         Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  weeks            AcademicWeek[]
+  lessons          Lesson[]
+  scheduleChanges  ScheduleChange[]
+  semesterSettings SemesterSettings?
+  timeslotSets     TimeslotSet[]
+}
+
+model AcademicWeek {
+  id         String   @id @default(uuid())
+  semesterId String
+  weekNumber Int
+  startDate  DateTime
+  weekType   String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  semester   Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  lessons    Lesson[]
+
+  @@unique([semesterId, weekNumber])
+}
+
+model TimeslotSet {
+  id         String     @id @default(uuid())
+  name       String
+  semesterId String
+  isDefault  Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  timeslots  Timeslot[]
+  semester   Semester   @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+
+  @@unique([semesterId, name])
+}
+
+model Timeslot {
+  id                           String           @id @default(uuid())
+  timeslotSetId                String
+  number                       Int
+  startTime                    String
+  endTime                      String
+  createdAt                    DateTime         @default(now())
+  updatedAt                    DateTime         @updatedAt
+  lessons                      Lesson[]
+  scheduleChangesAsNewTimeslot ScheduleChange[] @relation("ScheduleChangeNewTimeslot")
+  timeslotSet                  TimeslotSet      @relation(fields: [timeslotSetId], references: [id], onDelete: Cascade)
+
+  @@unique([timeslotSetId, number])
+}
+
+model Lesson {
+  id              String              @id @default(uuid())
+  semesterId      String
+  academicWeekId  String?
+  dayOfWeek       Int
+  weekType        String              @default("EVERY")
+  timeslotId      String
+  subjectId       String
+  lessonTypeId    String
+  roomId          String?
+  note            String?
+  version         Int                 @default(0)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  room            Room?               @relation(fields: [roomId], references: [id])
+  lessonType      LessonType          @relation(fields: [lessonTypeId], references: [id])
+  subject         Subject             @relation(fields: [subjectId], references: [id])
+  timeslot        Timeslot            @relation(fields: [timeslotId], references: [id])
+  academicWeek    AcademicWeek?       @relation(fields: [academicWeekId], references: [id], onDelete: Cascade)
+  semester        Semester            @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  groups          LessonGroup[]
+  streamGroups    LessonStreamGroup[]
+  subgroups       LessonSubgroup[]
+  teachers        LessonTeacher[]
+  scheduleChanges ScheduleChange[]
+
+  @@index([semesterId, dayOfWeek, timeslotId])
+  @@index([semesterId, dayOfWeek, weekType])
+  @@index([academicWeekId])
+}
+
+model LessonTeacher {
+  lessonId  String
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  lesson    Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@id([lessonId, teacherId])
+}
+
+model LessonGroup {
+  lessonId String
+  groupId  String
+  group    Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@id([lessonId, groupId])
+}
+
+model LessonSubgroup {
+  lessonId   String
+  subgroupId String
+  subgroup   Subgroup @relation(fields: [subgroupId], references: [id], onDelete: Cascade)
+  lesson     Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@id([lessonId, subgroupId])
+}
+
+model LessonStreamGroup {
+  lessonId      String
+  streamGroupId String
+  streamGroup   StreamGroup @relation(fields: [streamGroupId], references: [id], onDelete: Cascade)
+  lesson        Lesson      @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@id([lessonId, streamGroupId])
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@app/bot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --enable-source-maps --loader ts-node/esm src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "node -e \"process.exit(0)\"",
+    "lint": "node -e \"process.exit(0)\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@grammyjs/ratelimiter": "^1.2.0",
+    "grammy": "^1.29.0"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
+

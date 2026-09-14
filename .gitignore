@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment
+.env
+
+# Build artifacts
+dist/
+*.tsbuildinfo
+
+# Local databases
+*.db
+*.db-journal
+
+# Turbo cache
+.turbo/
+**/.turbo/
+.turbo/cache/*.tar.zst
+
+# Test coverage
+coverage/

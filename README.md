@@ -96,3 +96,7 @@ pnpm --filter @app/worker test            # node:test (quiet hours, backoff)
 - `BOT_TOKEN` / `API_URL` — service-token для HTTP-взаимодействия бота с API
 - `UNIVERSITY_TZ` — часовой пояс (тихие часы уведомлений)
 - `ALLOWED_ORIGINS` — CORS origins
+
+## Вклад в проект
+
+Хотите помочь? Ознакомьтесь с [CONTRIBUTING.md](./CONTRIBUTING.md) — там описаны правила форка, веток, стандарты кода и процесс PR.

@@ -37,7 +37,7 @@ pnpm --filter @repo/db prisma:generate
 pnpm --filter @repo/db prisma:migrate
 
 # 5. Сидирование (роли, пользователи, справочники, демо-расписание)
-pnpm --filter @app/api build   # seed требует сборки
+#    скрипт seed сам выполняет build
 pnpm --filter @app/api seed
 
 # 6. Запуск (web + api + worker параллельно)
@@ -59,6 +59,8 @@ docker compose up --build
 ```
 
 Сервисы: `api` (:3001), `web` (:3000), `worker`, `redis`. Бот в compose отсутствует — запускается вручную (см. выше). Конфигурация dev-режим.
+
+Полная инструкция по развёртыванию (локальный запуск, переменные окружения, проверка работоспособности, траблшутинг, известные ограничения) — в [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md).
 
 ## Тесты
 

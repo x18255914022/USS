@@ -66,12 +66,12 @@ else
   warn "schema.prisma не найден"
 fi
 
-# 5. Docker Compose up (только redis)
+# 5. Docker Compose up (redis + postgres)
 if [ "$SKIP_DOCKER" = false ]; then
   info "=== Запуск инфраструктуры (Docker Compose) ==="
-  docker compose up -d redis || docker-compose up -d redis
+  docker compose up -d redis postgres || docker-compose up -d redis postgres
   sleep 2
-  ok "Redis запущен в Docker"
+  ok "Redis и PostgreSQL запущены в Docker"
 else
   info "=== Docker Compose пропущен (флаг --skip-docker) ==="
 fi

@@ -8,8 +8,13 @@ services:
     environment:
       # внутри контейнера localhost — это сам контейнер, Redis доступен по имени сервиса
       - REDIS_URL=redis://redis:6379
+      # Postgres доступен по имени сервиса внутри сети compose
+      - DATABASE_URL=postgresql://uss:uss_dev_password@postgres:5432/uss
     depends_on:
-      - redis
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     ports:
       - "3001:3001"
     command: ["pnpm", "--filter", "@app/api", "dev"]
@@ -31,14 +36,35 @@ services:
     environment:
       # внутри контейнера localhost — это сам контейнер, Redis доступен по имени сервиса
       - REDIS_URL=redis://redis:6379
+      # Postgres доступен по имени сервиса внутри сети compose
+      - DATABASE_URL=postgresql://uss:uss_dev_password@postgres:5432/uss
     depends_on:
-      - redis
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     command: ["pnpm", "--filter", "@app/worker", "dev"]
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=uss
+      - POSTGRES_PASSWORD=uss_dev_password
+      - POSTGRES_DB=uss
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uss -d uss"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   redis_data:
+  postgres_data:

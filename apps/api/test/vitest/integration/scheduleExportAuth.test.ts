@@ -5,7 +5,7 @@ import { authPlugin } from "../../../src/plugins/auth.js";
 import { rbacPlugin } from "../../../src/plugins/rbac.js";
 import { scheduleRoutes } from "../../../src/routes/schedule.js";
 
-process.env.DATABASE_URL ??= "file:/tmp/uss-api-vitest.db";
+process.env.DATABASE_URL ??= "postgresql://localhost:5432/uss";
 
 test("GET /api/schedule/group/:id/export требует авторизацию", async () => {
   const app = Fastify({ logger: false });

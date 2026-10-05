@@ -1,6 +1,6 @@
 # Развёртывание University Schedule System (USS)
 
-Текущая версия: **v0.9**. Документ описывает два способа запуска: локальную разработку и Docker Compose (dev-режим). Продакшн-образов в проекте нет — см. раздел «Известные ограничения».
+Текущая версия: **v1.0**. Документ описывает три способа запуска: локальную разработку, Docker Compose (dev-режим) и продакшн-сборку ([`docker-compose.prod.yml`](../docker-compose.prod.yml), раздел [«Продакшн»](#вариант-3--продакшн-docker-composeprodyml) ниже).
 
 ## Требования
 
@@ -151,6 +151,95 @@ docker compose down -v            # остановить и удалить volum
 
 > Нюанс Redis в compose: сервис `redis` не публикует порт наружу, а `REDIS_URL` из `.env` по умолчанию указывает на `redis://localhost:6379`. Внутри контейнеров `localhost` — это сам контейнер, поэтому для сервисов `api` и `worker` в `docker-compose.yml` `REDIS_URL` переопределён на `redis://redis:6379` (имя сервиса). Для локального запуска на хосте с тем же `.env` значение `redis://localhost:6379` остаётся корректным.
 
+## Вариант 3 — Продакшн (docker-compose.prod.yml)
+
+Продакшн-стек ROADMAP v1.0: multi-stage образы (`apps/*/Dockerfile.prod`), reverse proxy на Caddy, автосиидирование при старте, healthchecks.
+
+### Подготовка
+
+```bash
+cp .env.prod.example .env.prod
+# заполните: POSTGRES_PASSWORD, JWT_SECRET (≥16), REFRESH_TOKEN_SECRET (≥16), APP_URL;
+# опционально TELEGRAM_BOT_TOKEN + BOT_TOKEN (без них bot/worker не работают, см. ниже)
+```
+
+Переменные `.env.prod` (полный шаблон с пояснениями — [.env.prod.example](../.env.prod.example)):
+
+| Переменная | Обязательность | Назначение |
+|---|---|---|
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Да | Креды сервиса `postgres`; из них compose собирает `DATABASE_URL` для контейнеров |
+| `JWT_SECRET`, `REFRESH_TOKEN_SECRET` | Да, ≥16 символов | Секреты API |
+| `APP_URL` | Да | Публичный URL приложения через proxy (для домена — `https://example.com`) |
+| `ALLOWED_ORIGINS`, `UNIVERSITY_TZ` | Нет | CORS, часовой пояс тихих часов |
+| `TELEGRAM_BOT_TOKEN`, `BOT_TOKEN` | Нет | Telegram: без них `bot`/`worker` не работают; `BOT_TOKEN` должен совпадать у API и бота |
+| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` и др. `SEED_*` | Нет | Переопределение seed-учёток |
+
+> `DATABASE_URL` в `.env.prod` не задаётся: compose подставляет его контейнерам сам (сервис `postgres` в compose-сети). `INTERNAL_API_URL` для web тоже задаётся compose (`http://api:3001`). Файл `.env.prod` в `.gitignore` — не коммитите.
+
+### Запуск и остановка
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build   # сборка + запуск
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f api    # логи
+docker compose --env-file .env.prod -f docker-compose.prod.yml down          # остановка (volumes остаются)
+```
+
+Сервисы (порты наружу публикует **только** `proxy`):
+
+| Сервис | Порт | Особенности |
+|---|---|---|
+| `proxy` | **80** (публичный) | Caddy: `/` → web:3000, `/api/*`, `/health`, `/docs`, `/admin/queues*` → api:3001; см. `docker/Caddyfile` |
+| `api` | — (только внутри сети) | Healthcheck: `GET /health`; Swagger UI — через proxy: `/docs` |
+| `web` | — | Healthcheck: HTTP-чек на :3000 (busybox `wget`, без новых зависимостей) |
+| `bot` | — | Включён в прод-стек (в dev-файле отсутствует); без `TELEGRAM_BOT_TOKEN` см. ниже |
+| `worker` | — | Healthcheck не задан — см. ниже почему |
+| `seed` | — | One-shot: `prisma migrate deploy` + идемпотентный seed, выходит после завершения |
+| `postgres` | 127.0.0.1:5433 (loopback) | `pg_isready`; 5433 — чтобы не конфликтовать с dev-инстансом на 5432 |
+| `redis` | 127.0.0.1:6379 (loopback) | `redis-cli ping` |
+
+> Loopback-порты `postgres` (127.0.0.1:5433) и `redis` (127.0.0.1:6379) нужны для бэкапов с хоста (`pg_dump`) и интеграционных тестов API — наружу (на другие машины) они не доступны.
+
+### Автосиидирование при первом старте
+
+Сервис `seed` при каждом `up` выполняет `prisma migrate deploy` (продакшн-команда — применяет только ожидающие миграции, в отличие от dev-команды `migrate dev`) и запускает `apps/api/dist/seed.js`. Seed идемпотентен: все операции — upsert (`apps/api/src/seed.ts`), демо-занятия создаются только при `lesson.count() < 10`, поэтому повторные запуски безопасны. Для доступа `migrate deploy` изнутри образа CLI `prisma` вынесен в prod-зависимости `packages/db` (без него в образе нет CLI, а `npx` в изолированной сети не работает).
+
+### Поведение bot/worker без TELEGRAM_BOT_TOKEN
+
+`bot` и `worker` без `TELEGRAM_BOT_TOKEN` печатают сообщение и **завершаются с кодом 0** — это штатное поведение (`apps/bot/src/index.ts:9-12`, `apps/worker/src/index.ts:9-12`). Поэтому в прод-файле у них `restart: on-failure`, а не `unless-stopped`: политика `unless-stopped` перезапускает контейнер даже после чистого выхода — без токена это вечный цикл рестартов; `on-failure` чистый выход (код 0) не перезапускает, а падение с ненулевым кодом — перезапускает. Итог: без токена контейнеры стоят в статусе `Exited (0)` и не мешают остальному стеку, с токеном — работают и самовосстанавливаются. HTTP-healthchecks для них не заданы: это не HTTP-сервисы, фейковый `/health` для них не существует — состояние смотрите в `docker compose ps` / `logs`.
+
+### Проверка прод-стека
+
+```bash
+curl http://localhost/health        # → {"ok":true} (через proxy)
+curl -I http://localhost/           # → 200/302 от web через proxy
+# Swagger UI: http://localhost/docs (браузером)
+# Bull Board: http://localhost/admin/queues (вход admin, право queues:read)
+docker compose --env-file .env.prod -f docker-compose.prod.yml ps   # статус сервисов
+```
+
+### Бэкапы PostgreSQL
+
+Пример — ежесуточный `pg_dump` в 03:00 с хоста (loopback-порт 5433):
+
+```cron
+0 3 * * * docker exec uss-prod-postgres-1 pg_dump -U uss -d uss | gzip > /var/backups/uss/uss-$(date +\%F).sql.gz
+```
+
+Имя контейнера стабильно (`uss-prod-postgres-1`, задано `name: uss-prod` в compose-файле). Восстановление:
+
+```bash
+gunzip -c uss-2026-10-05.sql.gz | docker exec -i uss-prod-postgres-1 psql -U uss -d uss
+```
+
+### HTTPS и домен
+
+По умолчанию Caddy работает в локальном режиме — plain HTTP на `:80` (без домена выпускать TLS-сертификат на dev-машине непрактично). Выбран Caddy вместо nginx: авто-HTTPS и авто-продление сертификатов (Let's Encrypt) из коробки против ручного выпуска/обновления у nginx. Переход на домен:
+
+1. В `docker/Caddyfile` замените адрес сайта `:80` на `example.com` (или раскомментируйте готовый блок в конце файла);
+2. В `docker-compose.prod.yml` (сервис `proxy`) раскомментируйте публикацию порта `443`;
+3. В `.env.prod` обновите `APP_URL=https://example.com` и при необходимости `ALLOWED_ORIGINS`;
+4. Перезапустите стек — Caddy сам выпустит сертификат (хранилище — volume `caddy_data`, переживает рестарты).
+
 ## Проверка работоспособности
 
 ```bash
@@ -180,12 +269,16 @@ curl http://localhost:3001/health
 | Seed завершается ошибкой / ничего не делает | Seed работает с `dist/seed.js`; скрипт `pnpm --filter @app/api seed` сам делает build. Прямой запуск `node dist/seed.js` без сборки упадёт |
 | Ошибка `P2021`/«table does not exist» | Миграции не применены. `pnpm --filter @repo/db prisma:migrate` |
 
-## Известные ограничения (v0.9)
+## Известные ограничения (v1.0)
 
-- **Dev-only Docker**: Dockerfile'ы (`apps/api`, `apps/web`, `apps/worker`) не имеют build-стадии и запускают `pnpm dev` внутри контейнера. Прод-образов нет.
-- **Telegram-бот не входит в docker-compose** — запускается вручную.
-- Healthcheck-эндпоинт только один — `GET /health` у API. В compose healthcheck настроен только у `postgres` (`pg_isready`).
-- Нет reverse proxy и TLS-терминации.
-- Redis-сервис в compose не публикует порт наружу; для контейнеров `api`/`worker` `REDIS_URL` переопределён на `redis://redis:6379` (см. нюанс выше).
+- **Прод-образы полные (~1.1 GB)**: multi-stage сборка и non-root выполнены, но dev-зависимости не отрезаются — `pnpm prune --prod` не удаляет dev-зависимости в workspace (проверено: `typescript`/`vitest`/`playwright` остаются в образе), а `pnpm deploy` не переносит сгенерированный Prisma Client (генератор со стандартным output пишет в virtual store pnpm). Оптимизация (custom `output` в генераторе Prisma + `pnpm deploy --prod`) — кандидат на v1.1.
+- **Dev-файл compose остаётся dev-only**: `docker-compose.yml` без build-стадий запускает `pnpm dev` в контейнерах — для продакшна используйте `docker-compose.prod.yml` (раздел [«Продакшн»](#вариант-3--продакшн-docker-composeprodyml) выше).
+- **Swagger v1.0 минимален**: `/docs` перечисляет маршруты с базовыми тегами, но без полных JSON-схем запросов/ответов — валидация описана Zod-схемами в обработчиках, автогенерации OpenAPI из них нет. Углубление (Zod → JSON Schema) — кандидат на v1.1.
+- **bot/worker без `TELEGRAM_BOT_TOKEN` завершаются с кодом 0** — в прод-стеке `restart: on-failure` (без токека стоят остановленными, без цикла рестартов; см. раздел «Поведение bot/worker» выше).
+- **Rate limiting в API отключён** (Fastify 5 pending) — см. TODO в `apps/api/src/server.ts`.
+- **E2E-тесты (`pnpm test:e2e`) сбрасывают базу** (`prisma migrate reset --force`) — запускайте только против dev-базы, никогда против прод-стека.
+- **TLS по умолчанию выключен**: Caddy в локальном режиме отдаёт plain HTTP на `:80`; домен + авто-HTTPS — по инструкции в разделе «HTTPS и домен».
+- **Прод-стек не публикует порты `api`/`web` наружу** — только `proxy:80`; `postgres`/`redis` доступны с хоста только по loopback (5433/6379).
+- Redis-сервис в dev-файле не публикует порт наружу; для контейнеров `api`/`worker` `REDIS_URL` переопределён на `redis://redis:6379` (см. нюанс выше). В прод-файле `redis` опубликован на `127.0.0.1:6379` (loopback, для тестов с хоста).
 
-Планы по прод-деплою и прочему недостающему функционалу — в [ROADMAP-PROMPT.md](../ROADMAP-PROMPT.md), раздел **v1.0** (прод-деплой, документация API, финальный QA).
+Планы по прочему недостающему функционалу — в [ROADMAP-PROMPT.md](../ROADMAP-PROMPT.md), раздел **v1.0** (финальный QA).

@@ -5,3 +5,7 @@ node_modules
 **/node_modules
 **/dist
 *.db
+# Кэш turbo и .git не нужны в build-контексте (ускоряет сборку и не сбрасывает кэш слоёв)
+.turbo
+**/.turbo
+.git

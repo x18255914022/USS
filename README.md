@@ -102,6 +102,8 @@ docker compose up --build
 
 Сервисы: `api` (:3001), `web` (:3000), `worker`, `redis`. Бот в compose отсутствует — запускается вручную (см. выше). Конфигурация dev-режим.
 
+Продакшн-сборка (multi-stage образы, Caddy reverse proxy, one-shot миграции+seed) — `docker-compose.prod.yml`: `cp .env.prod.example .env.prod`, затем `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build`. Подробнее — [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md), раздел «Продакшн».
+
 ## Примеры использования
 
 Проверка, что API запущен:

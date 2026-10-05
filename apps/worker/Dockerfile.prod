@@ -1,0 +1,20 @@
+# Продакшн-образ worker (ROADMAP v1.0). См. apps/api/Dockerfile.prod — общая схема.
+# Без TELEGRAM_BOT_TOKEN worker завершается с кодом 0 (apps/worker/src/index.ts) —
+# политика перезапуска on-failure в docker-compose.prod.yml, см. комментарий у бота.
+FROM node:24-alpine AS build
+WORKDIR /app
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
+COPY . .
+RUN pnpm install --frozen-lockfile \
+  && pnpm --filter @repo/db prisma:generate \
+  && pnpm build
+# прод-зависимости не отрезаются: pnpm prune --prod не удаляет dev-зависимости в workspace,
+# а pnpm deploy не переносит сгенерированный Prisma Client (default output) — см. docs/DEPLOYMENT.md
+
+FROM node:24-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build --chown=node:node /app .
+USER node
+CMD ["node", "apps/worker/dist/index.js"]

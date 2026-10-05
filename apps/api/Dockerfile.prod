@@ -1,0 +1,22 @@
+# Продакшн-образ API (ROADMAP v1.0).
+# Общая схема всех прод-образов (apps/*/Dockerfile.prod): multi-stage —
+# build (pnpm install → prisma generate → turbo build) →
+# runtime (non-root, NODE_ENV=production, собранные артефакты).
+# Стадии до CMD идентичны во всех четырёх образах — слои кэшируются Docker'ом один раз.
+FROM node:24-alpine AS build
+WORKDIR /app
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
+COPY . .
+RUN pnpm install --frozen-lockfile \
+  && pnpm --filter @repo/db prisma:generate \
+  && pnpm build
+# прод-зависимости не отрезаются: pnpm prune --prod не удаляет dev-зависимости в workspace,
+# а pnpm deploy не переносит сгенерированный Prisma Client (default output) — см. docs/DEPLOYMENT.md
+
+FROM node:24-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build --chown=node:node /app .
+USER node
+CMD ["node", "apps/api/dist/index.js"]

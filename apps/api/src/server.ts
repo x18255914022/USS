@@ -2,6 +2,8 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
+import swagger from "@fastify/swagger";
+import swaggerUi from "@fastify/swagger-ui";
 // import rateLimit from "@fastify/rate-limit";
 import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter.js";
@@ -71,6 +73,28 @@ export function buildServer() {
   });
 
   app.register(cookie);
+
+  // API-документация (ROADMAP v1.0): Swagger UI — /docs.
+  // Минимум v1.0: перечисление маршрутов и теги без полных JSON-схем —
+  // валидация описана Zod-схемами в обработчиках, автогенерации OpenAPI из них нет.
+  app.register(swagger, {
+    swagger: {
+      info: {
+        title: "USS API",
+        version: "1.0.0",
+        description: "REST API University Schedule System"
+      },
+      tags: [
+        { name: "health", description: "Проверка работоспособности" },
+        { name: "auth", description: "Аутентификация (JWT + refresh)" },
+        { name: "admin", description: "Справочники и администрирование (RBAC)" },
+        { name: "changes", description: "Запросы на изменение расписания" },
+        { name: "schedule", description: "Расписание и экспорт iCal" },
+        { name: "telegram", description: "Привязка Telegram-аккаунтов" }
+      ]
+    }
+  });
+  app.register(swaggerUi, { routePrefix: "/docs" });
 
   app.register(jwt, {
     secret: env.JWT_SECRET

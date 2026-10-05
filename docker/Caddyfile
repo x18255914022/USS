@@ -1,0 +1,44 @@
+# Reverse proxy USS (ROADMAP v1.0). Меньшая конфигурация выбрана в пользу Caddy:
+# авто-HTTPS из коробки (для продакшн-домена), против ручных сертификатов у nginx.
+#
+# По умолчанию — локальный режим: plain HTTP на :80 (TLS на dev-машине
+# без домена непрактичен). Для перехода на домен с авто-HTTPS (Let's Encrypt):
+# 1. замените адрес сайта ":80" на "example.com" (или раскомментируйте блок ниже);
+# 2. откройте порт 443 в docker-compose.prod.yml (сервис proxy);
+# 3. Caddy сам выпустит и продлит сертификат (хранилище — volume caddy_data).
+# Подробнее: docs/DEPLOYMENT.md, раздел «Продакшн → HTTPS и домен».
+
+:80 {
+	# API: браузерные запросы web идут на тот же origin (/api/...), попадают сюда
+	handle /api/* {
+		reverse_proxy api:3001
+	}
+	# Health API и мониторинг очередей (Bull Board, под JWT+RBAC)
+	handle /health {
+		reverse_proxy api:3001
+	}
+	handle /admin/queues* {
+		reverse_proxy api:3001
+	}
+	# Swagger UI (@fastify/swagger-ui, apps/api/src/server.ts)
+	handle /docs {
+		reverse_proxy api:3001
+	}
+	handle /docs/* {
+		reverse_proxy api:3001
+	}
+	# Всё остальное — веб-приложение
+	handle {
+		reverse_proxy web:3000
+	}
+}
+
+# Продакшн-домен с авто-HTTPS:
+# example.com {
+# 	handle /api/* { reverse_proxy api:3001 }
+# 	handle /health { reverse_proxy api:3001 }
+# 	handle /admin/queues* { reverse_proxy api:3001 }
+# 	handle /docs { reverse_proxy api:3001 }
+# 	handle /docs/* { reverse_proxy api:3001 }
+# 	handle { reverse_proxy web:3000 }
+# }

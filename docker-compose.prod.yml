@@ -1,0 +1,191 @@
+# Продакшн-стек USS (ROADMAP v1.0). Отличия от dev-режима:
+# - multi-stage образы (apps/*/Dockerfile.prod), non-root, NODE_ENV=production;
+# - bot включён в стек;
+# - единственный публичный порт — 80 у proxy (Caddy): / и /api/* проксируются,
+#   /health, /docs (Swagger) и /admin/queues (Bull Board) — на api;
+# - postgres/redis опубликованы только на loopback (127.0.0.1) — для бэкапов
+#   (pg_dump с хоста) и интеграционных тестов; postgres — на 5433, чтобы
+#   не конфликтовать с dev-инстансом на 5432;
+# - seed: one-shot сервис — prisma migrate deploy (прод-корректно, НЕ migrate dev)
+#   + идемпотентный seed (все операции upsert, apps/api/src/seed.ts);
+# - bot/worker без TELEGRAM_BOT_TOKEN завершаются с кодом 0 (штатно), поэтому
+#   у них restart: on-failure: без токена контейнер остаётся остановленным,
+#   с токеном работает и перезапускается только при падении.
+#
+# Запуск:
+#   cp .env.prod.example .env.prod   # и заполнить секреты
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+name: uss-prod
+
+services:
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      # Для домена с авто-HTTPS раскомментируйте и пропишите домен в docker/Caddyfile:
+      # - "443:443"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Хранилища сертификатов Caddy (актуально после перехода на домен + TLS)
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_started
+      web:
+        condition: service_started
+
+  api:
+    build:
+      context: .
+      dockerfile: ./apps/api/Dockerfile.prod
+    restart: unless-stopped
+    env_file:
+      - path: .env.prod
+        required: false
+    environment:
+      NODE_ENV: production
+      # Внутри compose-сети сервисы доступны по именам
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://${POSTGRES_USER:-uss}:${POSTGRES_PASSWORD:-change_me_in_env_prod}@postgres:5432/${POSTGRES_DB:-uss}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # GET /health существует в API (apps/api/src/routes/health.ts);
+      # 127.0.0.1, а не localhost: busybox wget резолвит localhost в ::1,
+      # а Node слушает только IPv4 (0.0.0.0)
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile.prod
+    restart: unless-stopped
+    env_file:
+      - path: .env.prod
+        required: false
+    environment:
+      NODE_ENV: production
+      # server-side запросы (apps/web/lib/serverApi.ts) — напрямую к api в compose-сети;
+      # client-side запросы идут через proxy (относительные /api/...)
+      INTERNAL_API_URL: http://api:3001
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # Простой HTTP-чек без новых зависимостей: busybox wget входит в node:24-alpine.
+      # Любой HTTP-ответ (в т.ч. редирект на /login) = сервер жив; 127.0.0.1 — см. комментарий у api
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  bot:
+    build:
+      context: .
+      dockerfile: ./apps/bot/Dockerfile.prod
+    # restart: on-failure — см. комментарий в apps/bot/Dockerfile.prod:
+    # без TELEGRAM_BOT_TOKEN бот завершается с кодом 0 и не перезапускается,
+    # с токеном — работает и перезапускается при падении.
+    restart: on-failure
+    env_file:
+      - path: .env.prod
+        required: false
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:3001
+    depends_on:
+      api:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: ./apps/worker/Dockerfile.prod
+    # restart: on-failure — без TELEGRAM_BOT_TOKEN worker завершается с кодом 0,
+    # см. apps/worker/Dockerfile.prod
+    restart: on-failure
+    env_file:
+      - path: .env.prod
+        required: false
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://${POSTGRES_USER:-uss}:${POSTGRES_PASSWORD:-change_me_in_env_prod}@postgres:5432/${POSTGRES_DB:-uss}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # One-shot: применяет миграции (prisma migrate deploy) и сидирует БД.
+  # Seed идемпотентен (только upsert, apps/api/src/seed.ts), поэтому сервис
+  # можно запускать на каждом `up`. prisma CLI — prod-зависимость packages/db,
+  # чтобы migrate deploy был доступен внутри образа без сети.
+  seed:
+    build:
+      context: .
+      dockerfile: ./apps/api/Dockerfile.prod
+    restart: "no"
+    env_file:
+      - path: .env.prod
+        required: false
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-uss}:${POSTGRES_PASSWORD:-change_me_in_env_prod}@postgres:5432/${POSTGRES_DB:-uss}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - node packages/db/node_modules/prisma/build/index.js migrate deploy --schema packages/db/prisma/schema.prisma && node apps/api/dist/seed.js
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-uss}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change_me_in_env_prod}
+      - POSTGRES_DB=${POSTGRES_DB:-uss}
+    ports:
+      # Только loopback (не публично): бэкапы с хоста (pg_dump) и локальные тесты.
+      # 5433, а не 5432, чтобы не конфликтовать с dev-инстансом.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-uss} -d ${POSTGRES_DB:-uss}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      # Только loopback (не публично): интеграционные тесты API с хоста
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

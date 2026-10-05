@@ -21,9 +21,7 @@
     "prisma:studio": "node scripts/run-prisma.mjs studio --schema packages/db/prisma/schema.prisma"
   },
   "dependencies": {
-    "@prisma/client": "^6.18.0"
-  },
-  "devDependencies": {
+    "@prisma/client": "^6.18.0",
     "prisma": "^6.18.0"
   }
 }

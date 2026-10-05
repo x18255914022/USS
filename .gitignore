@@ -23,3 +23,9 @@ coverage/
 
 # Pi package clone cache (machine-local, like node_modules)
 .pi/git/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

@@ -7,9 +7,11 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "format": "prettier -w ."
+    "format": "prettier -w .",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^22.10.7",
     "prettier": "^3.3.3",
     "turbo": "^2.0.9",

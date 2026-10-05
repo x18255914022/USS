@@ -4,9 +4,9 @@
     Скрипт инициализации проекта university-schedule.
 .DESCRIPTION
     Проверяет зависимости, устанавливает пакеты, генерирует Prisma Client,
-    поднимает Docker-инфраструктуру (Redis) и выводит финальные инструкции.
+    поднимает Docker-инфраструктуру (Redis, PostgreSQL) и выводит финальные инструкции.
 .PARAMETER SkipDocker
-    Пропустить запуск Docker Compose (если Redis уже работает).
+    Пропустить запуск Docker Compose (если Redis/PostgreSQL уже работают).
 .PARAMETER Purge
     Сначала выполнить cleanup.ps1 с полной очисткой.
 #>
@@ -100,16 +100,16 @@ if (Test-Path $prismaSchema) {
     Write-Warn "schema.prisma не найден: $prismaSchema"
 }
 
-# 5. Docker Compose up (только redis)
+# 5. Docker Compose up (redis + postgres)
 if (-not $SkipDocker) {
     Write-Info "=== Запуск инфраструктуры (Docker Compose) ==="
-    docker compose up -d redis
+    docker compose up -d redis postgres
     if ($LASTEXITCODE -ne 0) {
         Write-Error "docker compose up завершился с ошибкой"
         exit 1
     }
     Start-Sleep -Seconds 2
-    Write-Success "Redis запущен в Docker"
+    Write-Success "Redis и PostgreSQL запущены в Docker"
 } else {
     Write-Info "=== Docker Compose пропущен (флаг -SkipDocker) ==="
 }

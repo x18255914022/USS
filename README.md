@@ -6,7 +6,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)
 ![Fastify 4](https://img.shields.io/badge/Fastify-4-000000?logo=fastify&logoColor=white)
-![Prisma 5](https://img.shields.io/badge/Prisma-5-2D3748?logo=prisma&logoColor=white)
+![Prisma 6](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma&logoColor=white)
 
 Система расписания вуза: справочники, составление расписания менеджерами, просмотр студентами и преподавателями, запросы на изменения с уведомлениями в Telegram.
 
@@ -50,16 +50,16 @@ USS закрывает полный цикл работы с учебным ра
 | `apps/web` (:3000) | Веб-приложение: просмотр расписания, визуальный редактор (drag & drop), админка, запросы на изменения | Next.js 16, React 19, Tailwind 4, TanStack Query, Zustand, dnd-kit |
 | `apps/bot` | Telegram-бот: расписание, запросы на отмену, привязка аккаунта | grammy |
 | `apps/worker` | Фоновая отправка уведомлений (BullMQ + Redis), тихие часы | BullMQ |
-| `packages/db` | Prisma-схема (SQLite), миграции, клиент | Prisma 5 |
+| `packages/db` | Prisma-схема (PostgreSQL), миграции, клиент | Prisma 6 |
 | `packages/shared` | Общие Zod-схемы, Redis-клиент, типы очередей | Zod, ioredis |
 
-Монорепозиторий: pnpm workspaces + Turborepo. База данных по умолчанию — SQLite (миграция на PostgreSQL запланирована в v1.0).
+Монорепозиторий: pnpm workspaces + Turborepo. База данных — PostgreSQL (миграция с SQLite выполнена в v1.0; dev-инстанс поднимается через `docker compose up -d postgres`).
 
 ## Требования
 
 - Node.js 20+
 - pnpm 9+
-- Docker (для Redis через compose) — опционально, можно поднять Redis локально
+- Docker (для PostgreSQL и Redis через compose) — опционально, можно поднять их локально
 
 ## Установка и запуск
 
@@ -72,7 +72,7 @@ pnpm install
 # 2. Переменные окружения
 cp .env.example .env
 
-# 3. Redis (docker compose up -d redis) или свой инстанс
+# 3. PostgreSQL и Redis (docker compose up -d postgres redis) или свои инстансы
 
 # 4. Prisma: генерация клиента + миграции
 pnpm --filter @repo/db prisma:generate
@@ -174,7 +174,7 @@ USS/
 
 Минимально необходимые:
 
-- `DATABASE_URL` — например `file:./packages/db/prisma/dev.db`
+- `DATABASE_URL` — строка подключения PostgreSQL, например `postgresql://uss:uss_dev_password@localhost:5432/uss` (креды dev-инстанса из `docker compose up -d postgres`)
 - `JWT_SECRET` — минимум 16 символов
 - `REFRESH_TOKEN_SECRET` — минимум 16 символов
 - `APP_URL` — URL приложения (например `http://localhost:3000`)
@@ -219,13 +219,13 @@ pnpm format                               # prettier
 
 1. Создайте ветку от `main` и внесите изменения.
 2. Убедитесь, что проходят `pnpm typecheck`, `pnpm lint` и тесты затронутых пакетов.
-3. При изменении схемы БД добавьте миграцию: `pnpm --filter @repo/db prisma:migrate`.
+3. При изменении схемы БД добавьте миграцию: `pnpm --filter @repo/db prisma:migrate --name <имя_миграции>`.
 4. Откройте Pull Request с описанием изменений.
 
 Руководство для контрибьюторов: см. `CONTRIBUTING.md` *(файл будет добавлен отдельной задачей — ссылка появится здесь)*.
 
 ## Дополнительная документация
 
-- [ROADMAP-PROMPT.md](./ROADMAP-PROMPT.md) — дорожная карта по версиям и статус реализации (включая известные отклонения: SQLite вместо PostgreSQL, уведомления только в Telegram, отключённый rate limiting).
+- [ROADMAP-PROMPT.md](./ROADMAP-PROMPT.md) — дорожная карта по версиям и статус реализации (включая известные отклонения: уведомления только в Telegram, отключённый rate limiting).
 - [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) — полная инструкция по развёртыванию: локальный запуск, переменные окружения, проверка работоспособности, траблшутинг, известные ограничения.
 - [AGENTS.md](./AGENTS.md) — настройки агентов для AI-ассистентов в этом репозитории.

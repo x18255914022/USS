@@ -14,7 +14,7 @@
 
 | Переменная | Где используется | Default | Обязательность |
 |---|---|---|---|
-| `DATABASE_URL` | API, seed, Prisma | `file:./packages/db/prisma/dev.db` | **Да** (API не стартует без неё) |
+| `DATABASE_URL` | API, seed, Prisma | `postgresql://uss:uss_dev_password@localhost:5432/uss` | **Да** (API не стартует без неё) |
 | `JWT_SECRET` | API | — | **Да**, минимум 16 символов |
 | `REFRESH_TOKEN_SECRET` | API | — | **Да**, минимум 16 символов |
 | `APP_URL` | API (ссылки в уведомлениях) | — | **Да**, валидный URL (например `http://localhost:3000`) |
@@ -35,11 +35,11 @@
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` / `SEED_ADMIN_FIRST_NAME` / `SEED_ADMIN_LAST_NAME` / `SEED_ADMIN_RESET_PASSWORD` | seed | `admin@example.com` / `admin12345` / `Admin` / `User` / `0` | Нет |
 | `SEED_STUDENT_EMAIL` / `SEED_STUDENT_PASSWORD` / `SEED_STUDENT_FIRST_NAME` / `SEED_STUDENT_LAST_NAME` | seed | `student@example.com` / `student12345` / `Student` / `User` | Нет |
 
-**Минимум для локального запуска без бота:** `DATABASE_URL`, `JWT_SECRET` (≥16), `REFRESH_TOKEN_SECRET` (≥16), `APP_URL`, работающий Redis (`REDIS_URL` по умолчанию указывает на `localhost:6379`).
+**Минимум для локального запуска без бота:** `DATABASE_URL`, `JWT_SECRET` (≥16), `REFRESH_TOKEN_SECRET` (≥16), `APP_URL`, работающие PostgreSQL (`docker compose up -d postgres`) и Redis (`REDIS_URL` по умолчанию указывает на `localhost:6379`).
 
 **Для полного запуска с ботом:** добавьте `TELEGRAM_BOT_TOKEN` и `BOT_TOKEN` (одинаковый в API и боте), при необходимости поправьте `API_URL`.
 
-> Нюанс `DATABASE_URL`: если путь в `file:` относительный, API превращает его в абсолютный относительно **директории, где лежит `.env`** (`apps/api/src/env.ts:16-21`). Значение по умолчанию указывает на `packages/db/prisma/dev.db` в корне репозитория. Путь должен быть доступен из того окружения, где запущен процесс (локально или в контейнере).
+> Нюанс `DATABASE_URL`: это строка подключения PostgreSQL. Dev-значение по умолчанию (`postgresql://uss:uss_dev_password@localhost:5432/uss`) совпадает с кредами сервиса `postgres` в `docker-compose.yml`. Prisma CLI (`prisma:migrate`, `prisma:studio`) запускается из корня репозитория через `packages/db/scripts/run-prisma.mjs`, чтобы читать корневой `.env` (pnpm run выполняет скрипты в `packages/db`, где корневой `.env` не виден). Внутри compose-контейнеров `DATABASE_URL` переопределён на `postgresql://uss:uss_dev_password@postgres:5432/uss` (имя сервиса).
 
 ## Вариант 1 — Локальная разработка
 
@@ -50,7 +50,7 @@
 1. Проверку наличия `pnpm` и `docker` (и запущенного демона Docker);
 2. `pnpm install` (пропускается, если `node_modules` уже есть);
 3. `pnpm --filter @repo/db prisma:generate` — генерация Prisma Client;
-4. `docker compose up -d redis` — подъём Redis в Docker.
+4. `docker compose up -d redis postgres` — подъём Redis и PostgreSQL в Docker.
 
 ```bash
 # Linux/macOS
@@ -60,7 +60,7 @@
 .\scripts\init.ps1
 ```
 
-Флаги: `--skip-docker` / `-SkipDocker` (пропустить подъём Redis, если он уже работает), `--purge` / `-Purge` (сначала полная очистка через cleanup-скрипт).
+Флаги: `--skip-docker` / `-SkipDocker` (пропустить подъём Redis/PostgreSQL, если они уже работают), `--purge` / `-Purge` (сначала полная очистка через cleanup-скрипт).
 
 > **Важно:** init-скрипты **не** выполняют миграции и seed — их нужно запустить вручную (шаги 4–5 ниже).
 
@@ -74,9 +74,9 @@ pnpm install
 cp .env.example .env
 # Отредактируйте .env: JWT_SECRET и REFRESH_TOKEN_SECRET минимум 16 символов
 
-# 3. Redis: либо через Docker
-docker compose up -d redis
-# либо свой инстанс на localhost:6379
+# 3. PostgreSQL и Redis: либо через Docker
+docker compose up -d postgres redis
+# либо свои инстансы (PostgreSQL на localhost:5432, Redis на localhost:6379)
 
 # 4. Prisma: генерация клиента + миграции
 pnpm --filter @repo/db prisma:generate
@@ -124,12 +124,13 @@ docker compose up --build
 | `web` | 3000 → 3000 | Next.js, запускается как `pnpm --filter @app/web dev` |
 | `worker` | — | Обработчик очередей уведомлений |
 | `redis` | — (порт не публикуется) | `redis:7-alpine`, persistence в volume `redis_data` (`--appendonly yes`) |
+| `postgres` | 5432 → 5432 | `postgres:16-alpine`, volume `postgres_data`, healthcheck `pg_isready` |
 
 Особенности:
 
 - **Бот в compose отсутствует** — запускается вручную на хосте (см. выше).
 - Образы **dev-only**: `node:24-alpine`, копируется весь репозиторий, `pnpm install --no-frozen-lockfile`, внутри контейнера запускается `pnpm dev` (hot-reload-режим). Это не продакшн-сборка.
-- Все сервисы читают `.env` из корня (`env_file: .env`). Healthchecks в compose не настроены.
+- Все сервисы читают `.env` из корня (`env_file: .env`). Healthcheck в compose настроен только у `postgres` (`pg_isready`).
 - Worker без `TELEGRAM_BOT_TOKEN` штатно завершается с кодом 0 — для работы очередей уведомлений токен нужен и в compose.
 
 Логи и остановка:
@@ -137,7 +138,7 @@ docker compose up --build
 ```bash
 docker compose logs -f api        # логи сервиса
 docker compose down               # остановить контейнеры
-docker compose down -v            # остановить и удалить volume с данными Redis
+docker compose down -v            # остановить и удалить volume с данными Redis и PostgreSQL
 ```
 
 Скрипты очистки (останавливают контейнеры, удаляют `.turbo`/`dist`, освобождают порты 3000/3001; с флагом purge — удаляют `node_modules` и volumes):
@@ -171,21 +172,20 @@ curl http://localhost:3001/health
 | `EADDRINUSE` на 3000/3001 | Порты заняты. `./scripts/cleanup.sh --ports-only` (Linux/macOS) или вручную освободите процессы |
 | API падает при старте с ошибкой Zod о `JWT_SECRET` | Секрет короче 16 символов или отсутствует |
 | API стартует, но в логах ошибки подключения к Redis | Redis не запущен. `docker compose up -d redis` или проверьте `REDIS_URL`. BullMQ ретраит подключение, API при этом обычно не падает целиком |
+| API/Prisma не подключается к PostgreSQL | PostgreSQL не запущен (`docker compose up -d postgres`) или неверный `DATABASE_URL`. Для Prisma CLI корневой `.env` читается через `scripts/run-prisma.mjs` из корня репозитория |
 | Worker «не работает» и молча завершается | Без `TELEGRAM_BOT_TOKEN` worker завершается с кодом 0 по дизайну (`apps/worker/src/index.ts:9-12`). С токеном, но без Redis — будет ретраить подключение |
 | Бот не стартует, код выхода 0 | Не задан `TELEGRAM_BOT_TOKEN` — штатное поведение |
 | Бот стартует, но запросы к API отклоняются | Не задан или не совпадает `BOT_TOKEN` у бота и API |
 | Ошибки импорта `@repo/db` (`Cannot find module ...`) | Prisma Client не сгенерирован. `pnpm --filter @repo/db prisma:generate` (и для seed — не забудьте `pnpm --filter @repo/db build` / `pnpm build`, так как `@repo/db` импортируется из `dist`) |
 | Seed завершается ошибкой / ничего не делает | Seed работает с `dist/seed.js`; скрипт `pnpm --filter @app/api seed` сам делает build. Прямой запуск `node dist/seed.js` без сборки упадёт |
 | Ошибка `P2021`/«table does not exist» | Миграции не применены. `pnpm --filter @repo/db prisma:migrate` |
-| API не находит БД при запуске из другой директории | Относительный путь в `DATABASE_URL` резолвится относительно `.env`; убедитесь, что файл БД существует по итоговому абсолютному пути |
 
 ## Известные ограничения (v0.9)
 
 - **Dev-only Docker**: Dockerfile'ы (`apps/api`, `apps/web`, `apps/worker`) не имеют build-стадии и запускают `pnpm dev` внутри контейнера. Прод-образов нет.
-- **SQLite вместо PostgreSQL** — миграция на PostgreSQL перенесена в v1.0.
 - **Telegram-бот не входит в docker-compose** — запускается вручную.
-- Healthcheck-эндпоинт только один — `GET /health` у API. Healthchecks в compose и у других сервисов отсутствуют.
+- Healthcheck-эндпоинт только один — `GET /health` у API. В compose healthcheck настроен только у `postgres` (`pg_isready`).
 - Нет reverse proxy и TLS-терминации.
 - Redis-сервис в compose не публикует порт наружу; для контейнеров `api`/`worker` `REDIS_URL` переопределён на `redis://redis:6379` (см. нюанс выше).
 
-Планы по прод-деплою и прочему недостающему функционалу — в [ROADMAP-PROMPT.md](../ROADMAP-PROMPT.md), раздел **v1.0** (прод-деплой, документация API, финальный QA, миграция на PostgreSQL).
+Планы по прод-деплою и прочему недостающему функционалу — в [ROADMAP-PROMPT.md](../ROADMAP-PROMPT.md), раздел **v1.0** (прод-деплой, документация API, финальный QA).

@@ -1,0 +1,7 @@
+# .env задаётся через env_file/environment в docker-compose.yml, копировать его в образ нельзя —
+# env.ts грузит .env с override:true и перебил бы DATABASE_URL из compose
+.env
+node_modules
+**/node_modules
+**/dist
+*.db

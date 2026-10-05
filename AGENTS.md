@@ -181,3 +181,14 @@ Agent configuration is managed in `.opencode/opencode.json`:
 - Tool access
 
 **Note:** After modifying agent files or configuration, restart opencode for changes to take effect.
+
+---
+
+## Pi Coding Agent
+
+This repo also carries a Pi configuration in `.pi/` (project profile, skills, prompts, guard extension):
+
+- **`.pi/PROJECT.md`** — source of truth for project facts: architecture, verified commands, quality gates, model routing, enabled skills. Read it before non-trivial work.
+- **Enabled skills**: core (`repo-init`, `repo-discovery`, `model-routing`, `safe-change`, `test-strategy`) + domain (`api-contract`, `db-migration`, `background-job`, `frontend-change`, `git-worktree`).
+- **Guard extension** `.pi/extensions/project-guard.ts` blocks destructive bash commands (rm -rf, git reset --hard, prisma reset/push, DROP TABLE…).
+- **Key commands**: `pnpm typecheck`, `pnpm lint`, `pnpm --filter @app/api test:unit`, `pnpm --filter @app/api test:integration`, `pnpm --filter @app/worker test`. Details in `.pi/PROJECT.md`.

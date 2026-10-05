@@ -1,0 +1,21 @@
+{
+  "defaultProvider": "opencode-go",
+  "defaultModel": "opencode-go/kimi-k2.7-code",
+  "defaultThinkingLevel": "medium",
+  "prompts": [
+    "prompts"
+  ],
+  "skills": [
+    "skills"
+  ],
+  "enableSkillCommands": true,
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 16384,
+    "keepRecentTokens": 24000
+  },
+  "showCacheMissNotices": true,
+  "packages": [
+    "git:github.com/NVlabs/SoL-Pi"
+  ]
+}

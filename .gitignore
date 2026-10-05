@@ -20,3 +20,6 @@ dist/
 
 # Test coverage
 coverage/
+
+# Pi package clone cache (machine-local, like node_modules)
+.pi/git/

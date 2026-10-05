@@ -491,6 +491,11 @@ export default function ManagerEditorPage() {
 
   useEffect(() => {
     const onKeyDown = (ev: KeyboardEvent) => {
+      const t = ev.target as HTMLElement | null;
+      const inField =
+        !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+      if (inField && (ev.key === "Delete" || ev.key === "Backspace")) return;
+      if (inField && (ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") return;
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "s") {
         ev.preventDefault();
         void saveAll();
@@ -835,7 +840,21 @@ export default function ManagerEditorPage() {
                 </tr>
               </thead>
               <tbody>
-                {timeslots.map((t) => (
+                {timeslotsQ.isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={`skeleton-${i}`} className="border-b border-zinc-100 last:border-0">
+                      <td className="px-4 py-3">
+                        <div className="h-4 w-10 animate-pulse rounded bg-zinc-200" />
+                        <div className="mt-2 h-3 w-16 animate-pulse rounded bg-zinc-200" />
+                      </td>
+                      {days.map((d) => (
+                        <td key={d} className="px-3 py-3">
+                          <div className="h-14 w-full animate-pulse rounded-lg bg-zinc-200" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : timeslots.map((t) => (
                   <tr key={t.id} className="border-b border-zinc-100 last:border-0">
                     <td className="px-4 py-3 align-top text-sm">
                       <div className="font-medium">№{t.number}</div>

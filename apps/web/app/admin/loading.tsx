@@ -1,9 +1,11 @@
 export default function Loading() {
   return (
-    <div className="flex items-center justify-center min-h-[400px]">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-8 h-8 border-2 border-zinc-200 border-t-zinc-900 rounded-full animate-spin" />
-        <p className="text-sm text-zinc-600">Загрузка админ-панели...</p>
+    <div className="space-y-6">
+      <div className="h-7 w-56 animate-pulse rounded-lg bg-zinc-200" />
+      <div className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-6">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="h-10 w-full animate-pulse rounded-lg bg-zinc-200" />
+        ))}
       </div>
     </div>
   );

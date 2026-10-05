@@ -1,9 +1,20 @@
 export default function Loading() {
   return (
-    <div className="flex items-center justify-center min-h-[400px]">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-8 h-8 border-2 border-zinc-200 border-t-zinc-900 rounded-full animate-spin" />
-        <p className="text-sm text-zinc-600">Загрузка менеджера...</p>
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <div className="h-7 w-72 animate-pulse rounded-lg bg-zinc-200" />
+        <div className="h-4 w-56 animate-pulse rounded bg-zinc-200" />
+      </div>
+      <div className="flex flex-wrap gap-3">
+        <div className="h-11 w-80 animate-pulse rounded-lg bg-zinc-200" />
+        <div className="h-11 w-64 animate-pulse rounded-lg bg-zinc-200" />
+        <div className="h-11 w-48 animate-pulse rounded-lg bg-zinc-200" />
+        <div className="h-11 w-32 animate-pulse rounded-lg bg-zinc-200" />
+      </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr_360px]">
+        <div className="h-96 animate-pulse rounded-2xl bg-zinc-200" />
+        <div className="h-96 animate-pulse rounded-2xl bg-zinc-200" />
+        <div className="h-96 animate-pulse rounded-2xl bg-zinc-200" />
       </div>
     </div>
   );

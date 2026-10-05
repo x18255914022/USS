@@ -93,8 +93,8 @@ export default async function ManagerConflictsPage({
         </Link>
       </form>
 
-      <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-        <table className="w-full border-collapse">
+      <section className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white">
+        <table className="w-full min-w-[480px] border-collapse">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
               <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600">Тип</th>

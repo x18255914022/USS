@@ -69,8 +69,8 @@ export default async function ChangesPage({
         ) : null}
       </div>
 
-      <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-        <table className="w-full border-collapse">
+      <section className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white">
+        <table className="w-full min-w-[720px] border-collapse">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
               <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600">Статус</th>
@@ -119,7 +119,7 @@ export default async function ChangesPage({
                               Одобрить
                             </button>
                           </form>
-                          <form action="/changes/action" method="post">
+                          <form action="/changes/action" method="post" className="flex flex-wrap gap-2">
                             <input type="hidden" name="id" value={c.id} />
                             <input type="hidden" name="actionType" value="reject" />
                             <input className="h-10 rounded-lg border border-zinc-200 px-3 text-sm" name="comment" placeholder="Комментарий" />
@@ -145,7 +145,7 @@ export default async function ChangesPage({
             ) : (
               <tr>
                 <td className="px-4 py-6 text-sm text-zinc-500" colSpan={6}>
-                  Нет запросов
+                  Нет запросов на изменения
                 </td>
               </tr>
             )}

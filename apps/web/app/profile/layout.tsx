@@ -14,8 +14,8 @@ export default async function ProfileLayout({ children }: { children: React.Reac
   return (
     <div className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">
       <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-y-2 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Link href="/schedule" className="text-sm font-semibold">
               Расписание
             </Link>

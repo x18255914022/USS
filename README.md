@@ -1,6 +1,6 @@
 # University Schedule System (USS)
 
-![Статус: v0.9](https://img.shields.io/badge/версия-v0.9-orange)
+![Статус: v1.0](https://img.shields.io/badge/версия-v1.0-orange)
 ![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)
 ![pnpm 9+](https://img.shields.io/badge/pnpm-9%2B-F69220?logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
@@ -10,7 +10,7 @@
 
 Система расписания вуза: справочники, составление расписания менеджерами, просмотр студентами и преподавателями, запросы на изменения с уведомлениями в Telegram.
 
-Текущее состояние: **v0.9** — реализованы v0.1–v0.8 полностью, v0.9 частично (не сделаны E2E-тесты и часть UX-полировки). См. [ROADMAP-PROMPT.md](./ROADMAP-PROMPT.md).
+Текущее состояние: **v1.0** — v0.1–v0.9 полностью; v1.0 частично (миграция на PostgreSQL, продакшн-стек `docker-compose.prod.yml`, Swagger `/docs`, продакшн-документация; не сделаны: реальный домен/TLS, rate limiting до Fastify 5). См. [ROADMAP-PROMPT.md](./ROADMAP-PROMPT.md).
 
 ## Оглавление
 
@@ -207,6 +207,7 @@ USS/
 pnpm --filter @app/api test:unit          # unit (vitest)
 pnpm --filter @app/api test:integration  # integration (vitest)
 pnpm --filter @app/worker test            # node:test (quiet hours, backoff)
+pnpm test:e2e                              # E2E (Playwright; поднимает api+web, сбрасывает dev-БД)
 
 pnpm lint                                 # линт всех пакетов (turbo)
 pnpm typecheck                            # проверка типов (tsc --noEmit)

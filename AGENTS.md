@@ -41,7 +41,7 @@ This project uses specialized agents for different tasks. Each agent has specifi
 ---
 
 ### 🗄️ Database Agent (`database-agent`)
-**Specialization:** Prisma ORM, SQLite, Schema Design
+**Specialization:** Prisma ORM, PostgreSQL, Schema Design
 
 **Use for:**
 - Database schema changes

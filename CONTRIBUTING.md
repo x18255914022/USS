@@ -42,6 +42,7 @@ git checkout -b feat/my-feature   # или fix/my-bug, docs/my-doc
 ```bash
 pnpm install
 cp .env.example .env
+docker compose up -d postgres redis
 pnpm --filter @repo/db prisma:generate
 pnpm --filter @repo/db prisma:migrate
 pnpm --filter @app/api seed
@@ -108,6 +109,7 @@ pnpm format --check # проверить без изменений
 pnpm --filter @app/api test:unit          # unit-тесты (vitest)
 pnpm --filter @app/api test:integration   # интеграционные тесты (vitest)
 pnpm --filter @app/worker test            # тесты worker (node:test)
+pnpm test:e2e                             # E2E (Playwright; поднимает api+web, сбрасывает dev-БД)
 ```
 
 Все тесты должны проходить зелёным. Новый код — с тестами.

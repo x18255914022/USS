@@ -5,7 +5,7 @@ Run `/project-init` from the repository root to replace this template with a ver
 
 ## Purpose
 
-USS — University Schedule System (v0.9). Full-cycle university timetable: reference data (groups, teachers, subjects, rooms, semesters, timeslots), drag&drop schedule editor with conflict checks, student/teacher weekly views (even/odd weeks, date overrides), change requests (CANCEL/RESCHEDULE/EXTRA) with Telegram notifications, iCal export, Telegram bot. Roles: student, teacher, schedule manager, admin (RBAC at API level). Status: v0.1–v0.8 complete, v0.9 partial (no E2E), v1.0 (prod, PostgreSQL) not started. Docs in Russian.
+USS — University Schedule System (v1.0, mostly done). Full-cycle university timetable: reference data (groups, teachers, subjects, rooms, semesters, timeslots), drag&drop schedule editor with conflict checks, student/teacher weekly views (even/odd weeks, date overrides), change requests (CANCEL/RESCHEDULE/EXTRA) with Telegram notifications, iCal export, Telegram bot. Roles: student, teacher, schedule manager, admin (RBAC at API level). Status (2026-10-05): v0.1–v0.9 complete (incl. Playwright E2E + UX polish); v1.0 mostly done — PostgreSQL migration, prod stack (`docker-compose.prod.yml`, Caddy proxy, multi-stage images, bot included, idempotent auto-seed), Swagger `/docs`; remaining: real domain/TLS run, image size optimization, rate limiting (pending Fastify 5). Docs in Russian.
 
 ## Architecture
 
@@ -15,14 +15,14 @@ Monorepo, pnpm workspaces + Turborepo:
 - `apps/web` — Next.js 16 App Router, port 3000. TanStack Query, Zustand, dnd-kit, Tailwind 4.
 - `apps/bot` — grammy Telegram bot: schedule view, cancel requests, account linking by code. In-memory sessions. Needs `TELEGRAM_BOT_TOKEN`, otherwise exits with code 0.
 - `apps/worker` — BullMQ worker: Telegram notifications, quiet hours, retry backoff. Exits 0 without token.
-- `packages/db` — Prisma 5 schema (~34 models), SQLite `dev.db`, migrations, generated client.
+- `packages/db` — Prisma 6 schema (~34 models), PostgreSQL, migrations (single `init_postgres`), generated client; `scripts/run-prisma.mjs` runs prisma from repo root so root `.env` is read.
 - `packages/shared` — Zod schemas, ioredis client, queue payload types.
 
-Data flow: web/bot → API (JWT; bot uses `BOT_TOKEN` service token via `x-bot-token`) → Prisma/SQLite; API → Redis (BullMQ) → worker → Telegram Bot API.
+Data flow: web/bot → API (JWT; bot uses `BOT_TOKEN` service token via `x-bot-token`) → Prisma/PostgreSQL; API → Redis (BullMQ) → worker → Telegram Bot API. Prod stack: `docker-compose.prod.yml` — proxy (Caddy, :80, HTTPS block commented), api, web, bot, worker, one-shot seed, postgres, redis.
 
 ## Stack
 
-TypeScript (strict, `tsconfig.base.json`), Node 20+, pnpm 9 (`packageManager: pnpm@9.0.0`), Turborepo, Fastify 4, Prisma 5, Zod, BullMQ + ioredis + Redis 7, Next.js 16 / React 19, Tailwind 4, grammy, Prettier, vitest + node:test.
+TypeScript (strict, `tsconfig.base.json`), Node 20+, pnpm 9 (`packageManager: pnpm@9.0.0`), Turborepo, Fastify 4 (+ @fastify/swagger at `/docs`), Prisma 6, Zod, BullMQ + ioredis + Redis 7, Next.js 16 / React 19, Tailwind 4, grammy, Prettier, vitest + node:test + Playwright (channel msedge — CDN unreachable).
 
 ## Workspace
 
@@ -43,9 +43,10 @@ Root scripts fan out via turbo: `dev`, `build`, `lint`, `typecheck`; `format` = 
 |---|---|---|---|
 | Install | `pnpm install` | root | No postinstall codegen — Prisma generate is manual |
 | Prisma client | `pnpm --filter @repo/db prisma:generate` | db | After schema edits |
-| Migrations | `pnpm --filter @repo/db prisma:migrate` | db | ⚠️ hardcodes `--name init_v0_1` — each run adds a new migration; use `pnpm --filter @repo/db exec prisma migrate dev --name <name>` for real migrations |
-| Seed | `pnpm --filter @app/api seed` | api | Roles, users, demo data; builds first |
-| Dev | `pnpm dev` | all | web+api+worker in parallel; web :3000, api :3001 |
+| Migrations | `pnpm --filter @repo/db prisma:migrate --name <x>` | db | Runs via `packages/db/scripts/run-prisma.mjs` (cwd=root so root `.env` is read). On fresh clone applies committed `init_postgres` without prompting; `--name` only for new migrations (no `--` separator) |
+| Seed | `pnpm --filter @app/api seed` | api | Roles, users, demo data; builds first; idempotent (upserts) |
+| Dev | `pnpm dev` | all | web+api+worker in parallel; web :3000, api :3001; needs `docker compose up -d postgres redis` first |
+| E2E | `pnpm test:e2e` | root | Playwright (channel msedge); boots api+web itself, resets dev-БД (migrate reset --force); needs `.env` with ≥16-char secrets + postgres up |
 | Bot | `pnpm --filter @app/bot dev` | bot | Requires `TELEGRAM_BOT_TOKEN` |
 | Lint | `pnpm lint` | all | Only `apps/web` has real ESLint; others are `exit 0` stubs |
 | Typecheck | `pnpm typecheck` | all | tsc strict, `--noEmit` |
@@ -54,9 +55,10 @@ Root scripts fan out via turbo: `dev`, `build`, `lint`, `typecheck`; `format` = 
 | Worker tests | `pnpm --filter @app/worker test` | worker | node:test; **runs `pnpm build` first** |
 | Build | `pnpm build` | all | tsc / next build |
 | Format | `pnpm format` | root | Prettier; no `.prettierrc` — defaults |
-| Containers | `docker compose up --build` | root | api, web, worker, redis (dev-mode; no bot, no prod images) |
+| Containers (dev) | `docker compose up --build` | root | api, web, worker, postgres, redis (dev-mode; bot not in dev compose) |
+| Containers (prod) | `docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build` | root | proxy(Caddy)/api/web/bot/worker/seed/postgres/redis; multi-stage images; see docs/DEPLOYMENT.md «Продакшн» |
 
-First use: `pnpm install` → `cp .env.example .env` → `prisma:generate` → `prisma:migrate` → `seed` → `pnpm dev`. Health check: `curl http://localhost:3001/health`.
+First use: `pnpm install` → `cp .env.example .env` (fix secrets ≥16 chars) → `docker compose up -d postgres redis` → `prisma:generate` → `prisma:migrate` → `seed` → `pnpm dev`. Health check: `curl http://localhost:3001/health`.
 
 ## Quality Gates
 
@@ -64,6 +66,8 @@ First use: `pnpm install` → `cp .env.example .env` → `prisma:generate` → `
 - `pnpm lint` — real ESLint only for `apps/web` (`eslint-config-next`); api/bot/worker/db/shared are stubs.
 - `pnpm --filter @app/api test:unit && pnpm --filter @app/api test:integration` — vitest.
 - `pnpm --filter @app/worker test` — node:test (quiet hours, backoff).
+- `pnpm test:e2e` — Playwright happy path (needs postgres up + `.env` secrets ≥16 chars).
+- `docker compose -f docker-compose.prod.yml config -q` — prod compose validity.
 - No CI pipeline (no `.github`), no pre-commit hooks. Conventional Commits (`type(scope): subject`, scope = api/web/bot/worker/db/shared) and branch prefixes (`feat/`, `fix/`, `docs/`, `refactor/`, `test/`, `chore/`) enforced by convention only. One PR = one change; no generated files in PRs.
 
 ## Architecture Rules
@@ -78,9 +82,9 @@ First use: `pnpm install` → `cp .env.example .env` → `prisma:generate` → `
 
 ## Data and APIs
 
-- DB: SQLite via Prisma (`DATABASE_URL=file:...`), ~34 models — RBAC (User, Role, Permission, UserRole, RolePermission), directory (Faculty, Department, Building, Room, Subject, Group, Subgroup, Teacher, Student, Semester, AcademicWeek, TimeslotSet/Timeslot), schedule (Lesson + join tables), changes (ScheduleChange, SemesterSettings, ChangeNotification, NotificationPreference), Telegram linking (TelegramLinkCode), SystemSettings.
-- API: REST `/api/*` on Fastify. Auth: JWT access (default TTL 900s) + refresh; RBAC middleware. Bot→API via `x-bot-token` service token. iCal export via long-lived subscription token (365 days). CORS via `ALLOWED_ORIGINS`. Rate limiting currently disabled (`apps/api/src/server.ts`).
-- API docs not written yet (roadmap v1.0).
+- DB: PostgreSQL via Prisma 6 (`DATABASE_URL=postgresql://...`, dev compose creds `uss:uss_dev_password@localhost:5432/uss`), ~34 models — RBAC (User, Role, Permission, UserRole, RolePermission), directory (Faculty, Department, Building, Room, Subject, Group, Subgroup, Teacher, Student, Semester, AcademicWeek, TimeslotSet/Timeslot), schedule (Lesson + join tables), changes (ScheduleChange, SemesterSettings, ChangeNotification, NotificationPreference), Telegram linking (TelegramLinkCode), SystemSettings. Migration: single `init_postgres`; `prisma migrate deploy` used in prod seed container.
+- API: REST `/api/*` on Fastify. Auth: JWT access (default TTL 900s) + refresh; RBAC middleware (approve/reject are `PATCH`). Bot→API via `x-bot-token` service token. iCal export via long-lived subscription token (365 days). CORS via `ALLOWED_ORIGINS`. Rate limiting currently disabled (`apps/api/src/server.ts`, pending Fastify 5).
+- API docs: Swagger UI at `/docs`, spec at `/docs/json` (route listing + tags; no per-route JSON schemas — Zod in handlers).
 - External: Telegram Bot API; Redis (BullMQ).
 
 ## Background Processing
@@ -100,7 +104,7 @@ BullMQ on Redis: notification queue produced by API, consumed by `apps/worker`; 
 | Change type | Risks | Required checks | Required skill |
 |---|---|---|---|
 | API route/service, auth, RBAC | Contract break, auth regression, bot/web breakage | `pnpm typecheck`, api unit+integration tests | `api-contract` |
-| Prisma schema / migration | Data loss, migration drift (SQLite), seed breakage | `prisma:generate`, `prisma:migrate`, reseed, api integration tests | `db-migration` |
+| Prisma schema / migration | Data loss, migration drift (PostgreSQL), seed breakage | `prisma:generate`, `prisma:migrate`, reseed, api integration tests | `db-migration` |
 | Queue payloads, worker logic | Stuck/duplicate notifications, backoff bugs | worker tests (note: builds first), manual queue check via Bull Board | `background-job` |
 | `apps/web` UI/state | View regressions, dnd/state bugs | `pnpm lint`, `pnpm typecheck`, manual smoke of affected views | `frontend-change` |
 | `packages/shared` schemas | Cross-app compile break across api/web/bot/worker | `pnpm typecheck` (turbo, all) | `safe-change` |
@@ -124,8 +128,9 @@ Domain (all apply to this repo): api-contract, db-migration, background-job, fro
 
 ## Open Questions
 
-- Commit `.pi/` starter kit to the repo, or keep untracked/local?
 - `.opencode/____opencode.json` — underscore-prefixed filename: is opencode config intentionally disabled? (AGENTS.md still documents `.opencode/agents/`.)
 - `.prettierrc` missing while CONTRIBUTING.md references it — intentional Prettier defaults, or doc drift?
-- Rate limiting disabled and bot sessions in-memory — accepted deviations until v1.0 (see ROADMAP-PROMPT.md), confirm before "fixing".
-- No CI pipeline — quality gates run manually only; CI creation is a v1.0 candidate.
+- 23 pre-existing lint errors in `apps/web` (mostly `any`) — separate cleanup task.
+- Rate limiting stays off until Fastify 5 upgrade; prod images ~1.1GB (pnpm prune no-op in workspaces) — v1.1 candidates.
+- Playwright uses `channel: "msedge"` (CDN unreachable); swap to chromium when network allows.
+- No CI pipeline — quality gates run manually only.

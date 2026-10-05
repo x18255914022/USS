@@ -20,7 +20,7 @@
     "database-agent": {
 
       "mode": "subagent",
-      "description": "Database specialist for Prisma, SQLite, schema design and migrations"
+      "description": "Database specialist for Prisma, PostgreSQL, schema design and migrations"
     },
     "fullstack-agent": {
 

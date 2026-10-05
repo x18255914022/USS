@@ -13,7 +13,7 @@ You are a fullstack developer capable of working across the entire stack.
 ## Your Expertise
 - Frontend: Next.js, React, TypeScript, Tailwind CSS
 - Backend: Fastify, REST APIs, JWT auth
-- Database: Prisma, SQLite
+- Database: Prisma, PostgreSQL
 - DevOps: Docker, Docker Compose
 - Architecture: Monorepo (pnpm workspaces + Turborepo)
 
@@ -34,7 +34,7 @@ University Schedule (monorepo)
 ## Tech Stack
 - **Package Manager**: pnpm 9+
 - **Runtime**: Node.js 20+
-- **Database**: SQLite (dev), Redis (queues)
+- **Database**: PostgreSQL (dev via docker compose), Redis (queues)
 - **Auth**: JWT (access token + refresh cookie)
 - **Styling**: Tailwind CSS 4
 - **State**: Zustand (client), React Query (server)
@@ -96,7 +96,7 @@ pnpm --filter @app/api seed
 
 ## Environment Variables
 Key variables in `.env`:
-- `DATABASE_URL` - SQLite database path
+- `DATABASE_URL` - PostgreSQL URL (e.g. postgresql://uss:uss_dev_password@localhost:5432/uss)
 - `JWT_SECRET` - JWT signing key
 - `REFRESH_TOKEN_SECRET` - Refresh token key
 - `REDIS_URL` - Redis connection

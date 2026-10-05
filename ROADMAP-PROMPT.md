@@ -525,11 +525,11 @@ SemesterSettings (id, semesterId, ...nullable overrides)
 - [x] Ошибка отправки → retry 3 раза → статус FAILED
 - [x] Bull Board открывается, показывает очереди
 - [x] Stats endpoint возвращает актуальные счётчики
-- [x] PostgreSQL: миграция прошла, данные целы (⚠️ отложено на v1.0, сейчас SQLite)
+- [x] PostgreSQL: миграция прошла, данные целы (выполнено в v1.0 — 2026-10-05, provider postgresql, единая миграция init_postgres)
 
 ---
 
-## 🔶 v0.9 — Полировка и edge cases
+## ✅ v0.9 — Полировка и edge cases (закрыто полностью 2026-10-05)
 
 > **Цель:** стабилизация. Обработка всех edge cases, UX-улучшения, тесты.
 

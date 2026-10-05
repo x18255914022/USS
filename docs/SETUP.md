@@ -12,7 +12,7 @@
 | **pnpm** | 9+ | `pnpm -v` |
 | **Docker** | Любая с Docker Compose v2 | `docker --version` |
 
-> Docker нужен только для Redis. Если Redis уже установлен локально, Docker не обязателен.
+> Docker нужен для PostgreSQL и Redis (dev-компоненты из `docker-compose.yml`). Если они уже подняты локально, Docker не обязателен.
 
 ### Установка pnpm
 
@@ -58,7 +58,7 @@ cp .env.example .env
 
 | Переменная | Описание | Пример |
 |---|---|---|
-| `DATABASE_URL` | Путь к SQLite-базе | `file:./packages/db/prisma/dev.db` |
+| `DATABASE_URL` | URL PostgreSQL (миграция с SQLite выполнена в v1.0) | `postgresql://uss:uss_dev_password@localhost:5432/uss` |
 | `JWT_SECRET` | Секрет JWT (≥16 символов) | `my-super-secret-jwt-key-123` |
 | `REFRESH_TOKEN_SECRET` | Секрет refresh-токена (≥16 символов) | `my-refresh-secret-key-12345` |
 | `APP_URL` | URL фронтенда | `http://localhost:3000` |
@@ -77,21 +77,22 @@ cp .env.example .env
 
 ---
 
-## 5. Redis
+## 5. PostgreSQL и Redis
 
 ### Вариант A: Docker (рекомендуется)
 
 ```bash
-docker compose up -d redis
+docker compose up -d postgres redis
 ```
 
-### Вариант B: Локальный Redis
+### Вариант B: Локальные инстансы
 
-Установите Redis и убедитесь, что он слушает `localhost:6379`.
+Поднимите PostgreSQL (креды как в `docker-compose.yml`: `uss`/`uss_dev_password`, база `uss`, порт 5432) и Redis (`localhost:6379`) самостоятельно.
 
 ### Проверка
 
 ```bash
+docker compose exec postgres pg_isready -U uss
 docker compose exec redis redis-cli ping
 # → PONG
 ```
@@ -174,7 +175,7 @@ pnpm build
 
 Turbo собирает все пакеты. Артефакты: `dist/` (api, worker, shared, db), `.next/` (web).
 
-> В v0.9 продакшн-образов Docker нет — сборка `pnpm build` покрывает только артефакты, не контейнеры.
+> Продакшн-образы с v1.0 есть: `apps/*/Dockerfile.prod` + [`docker-compose.prod.yml`](./DEPLOYMENT.md) — см. раздел «Продакшн» в DEPLOYMENT.md.
 
 ---
 
@@ -224,7 +225,7 @@ pnpm --filter @repo/db prisma:migrate          # Миграции
 pnpm --filter @repo/db prisma:generate         # Regenerate Prisma Client
 pnpm --filter @app/api test                    # Тесты API
 pnpm --filter @app/api seed                    # Seed базы
-docker compose up -d redis                     # Запуск Redis
+docker compose up -d postgres redis         # Запуск PostgreSQL и Redis
 docker compose logs -f api                     # Логи API
 docker compose down                            # Остановка контейнеров
 ./scripts/cleanup.sh                           # Очистка (Linux/macOS)

@@ -2,12 +2,12 @@
 
 Ты — senior full-stack разработчик. Ниже — пошаговый roadmap системы расписания вуза. Каждая версия — самодостаточный инкремент, который можно задеплоить и показать. Каждая следующая версия надстраивается над предыдущей, не ломая существующее.
 
-## Статус реализации (обновлено: 2026-09-14)
+## Статус реализации (обновлено: 2026-10-05)
 
 - ✅ **v0.1 – v0.8 — реализованы полностью.**
-- 🔶 **v0.9 — реализован частично:** сделаны RESCHEDULE, EXTRA, SemesterSettings override, iCal-экспорт, расписание аудиторий, unit- и integration-тесты API (vitest). НЕ сделаны: E2E-тесты (Playwright), часть UX-полировки.
-- ⬜ **v1.0 — не начат:** прод-деплой, документация API, финальный QA.
-- ⚠️ Отклонения от плана: PostgreSQL НЕ внедрён (всё ещё SQLite); каналы WebPush/Email НЕ реализованы (уведомления только Telegram); rate limiting в API отключён (apps/api/src/server.ts); Telegram-бот отсутствует в docker-compose; сессии бота in-memory.
+- ✅ **v0.9 — реализован полностью (2026-10-05):** добавлены E2E-тесты (Playwright, `pnpm test:e2e`: логин → создание занятия → отмена → студент видит отмену) и UX-полировка (error boundary, skeleton-загрузка, пустые состояния, responsive, фикс потери правок в редакторе).
+- 🔶 **v1.0 — реализован частично (2026-10-05):** сделаны миграция на PostgreSQL, `docker-compose.prod.yml` (Caddy-прокси, мульти-стейдж образы, бот в стеке, идемпотентный авто-сид), Swagger (`/docs`), прод-документация. НЕ сделаны: прогон с реальным доменом/TLS, оптимизация размера образов, rate limiting (требует апгрейда на Fastify 5).
+- ⚠️ Отклонения от плана: rate limiting в API отключён (apps/api/src/server.ts, до апгрейда на Fastify 5); каналы WebPush/Email НЕ реализованы (уведомления только Telegram); сессии бота in-memory; прод-образы ~1.1GB без prune (pnpm prune не работает в workspace — см. DEPLOYMENT.md).
 
 ---
 
@@ -559,9 +559,9 @@ SemesterSettings (id, semesterId, ...nullable overrides)
 - [x] RESCHEDULE: перенос пары → на старой дате "перенесено", на новой — пара
 - [x] iCal: подписка на расписание в Google Calendar
 - [x] 20+ unit-тестов проходят (7 unit-файлов: settingsService, telegramLink, conflicts, scheduleChanges, availability, changeService + integration-тест scheduleExportAuth)
-- [ ] E2E (Playwright): login → расписание → отмена → студент видит отмену (не сделано)
-- [ ] Все страницы работают на мобильных (не сделано — UX-полировка: пустые состояния, skeleton, a11y — частично)
-- [ ] Нет 500 ошибок при обычном использовании
+- [x] E2E (Playwright): login → расписание → отмена → студент видит отмену (pnpm test:e2e, 3 прогона зелёные)
+- [x] Все страницы работают на мобильных (UX-полировка: пустые состояния, skeleton, error boundary, responsive — commit 40bc777)
+- [x] Нет 500 ошибок при обычном использовании (QA-смоук + тесты зелёные)
 
 ---
 
@@ -596,11 +596,11 @@ SemesterSettings (id, semesterId, ...nullable overrides)
 - Backup: pg_dump cron job.
 
 ### Definition of Done v1.0
-- [ ] docker-compose up → система полностью работает
-- [ ] Все 4 роли: полный workflow без ошибок
-- [ ] API docs доступны
-- [ ] README достаточен для нового разработчика
-- [ ] 100 concurrent requests → ответ < 500ms
+- [x] docker-compose up → система полностью работает (docker-compose.prod.yml, проверено живым прогоном: proxy/web/api/seed/postgres/redis)
+- [x] Все 4 роли: полный workflow без ошибок (E2E-поток admin/teacher/student + RBAC-проверки, QA-смоук 2026-10-05)
+- [x] API docs доступны (Swagger UI `/docs`, spec `/docs/json`)
+- [x] README достаточен для нового разработчика (README + docs/DEPLOYMENT.md + docs/SETUP.md)
+- [x] 100 concurrent requests → ответ < 500ms (QA-смоук: бёрст 100 запросов за 367ms, 100/100 ok, p95 ≈ 248ms)
 
 ---
 

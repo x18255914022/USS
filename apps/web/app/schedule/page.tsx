@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { apiFetchServer } from "../../lib/serverApi";
-import type { ScheduleData } from "../../lib/types";
+import type { ScheduleData, ScheduleItem } from "../../lib/types";
 
 function fmtDateInput(d: Date) {
   const y = d.getFullYear();
